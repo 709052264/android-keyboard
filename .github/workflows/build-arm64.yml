@@ -42,15 +42,12 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
-      - name: Build arm64 debug APK
+            - name: Build debug APK
         run: ./gradlew assembleUnstableDebug --stacktrace
-
-      - name: List all APK outputs
-        run: find app/build/outputs -name "*.apk" -type f || echo "No APK found anywhere"
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: futo-keyboard-arm64-debug
-          path: app/build/outputs/apk/**/debug/*.apk
+          name: futo-keyboard-debug
+          path: latinime/build/outputs/apk/**/debug/*.apk
           if-no-files-found: error
