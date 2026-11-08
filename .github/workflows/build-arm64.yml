@@ -45,6 +45,9 @@ jobs:
       - name: Build debug APK
         run: ./gradlew assembleUnstableDebug --stacktrace
 
+      - name: Locate APK
+        run: find . -path "*/build/outputs/apk/*" -name "*.apk" -type f 2>/dev/null || echo "NO APK FOUND"
+
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
