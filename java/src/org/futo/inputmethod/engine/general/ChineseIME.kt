@@ -83,6 +83,7 @@ object ChineseIMESettings {
         val rimeId: String
     ) {
         // These must not be renamed, or the existing setting value for users will break
+        RimeIce("霧凇拼音", "Rime Ice", "rime_ice"),
         FullPinyin("全拼", "Full Pinyin", "luna_pinyin"),
         Natural("自然碼雙拼", "Double Pinyin", "double_pinyin"),
         ABC("智能ABC雙拼", "Double Pinyin - ABC", "double_pinyin_abc"),
@@ -573,17 +574,23 @@ class ChineseIME(val helper: IMEHelper) : IMEInterface, SuggestionStripViewAcces
         val content = buildString {
             appendLine("patch:")
 
+            // 这两个 translator 选项 luna_pinyin 和 rime_ice 都支持，通用
             appendLine("    translator/enable_correction: ${cfg.autocorrect}")
             appendLine("    translator/enable_user_dict: ${cfg.learning}")
 
-            appendLine("    switches/+:")
-            appendLine("        - name: futo_zh_simp")
-            appendLine("          reset: ${if(cfg.simplification) 1 else 0}")
-            appendLine("          states: [ 漢字, 汉字 ]")
-            appendLine("    simplifier/option_name: futo_zh_simp")
+            // 只有 luna_pinyin 需要 FUTO 注入简繁开关
+            // rime_ice 自带 traditionalization 开关和 traditionalize 滤镜，不注入
+            if (schema.startsWith("luna_pinyin")) {
+                appendLine("    switches/+:")
+                appendLine("        - name: futo_zh_simp")
+                appendLine("          reset: ${if(cfg.simplification) 1 else 0}")
+                appendLine("          states: [ 漢字, 汉字 ]")
+                appendLine("    simplifier/option_name: futo_zh_simp")
+            }
 
-            // Fuzzy pinyin only added to pinyin layouts
-            if(schema.startsWith("luna_pinyin")) {
+            // 模糊音对 luna_pinyin 和 rime_ice 都追加
+            // 注意：rime_ice 自带 abbrev 简拼规则，这里不要再追加简拼
+            if (schema.startsWith("luna_pinyin") || schema == "rime_ice") {
                 appendLine("    speller/algebra/+:")
                 cfg.fuzzyMode.forEach {
                     it.schemePatch.forEach {
@@ -593,7 +600,7 @@ class ChineseIME(val helper: IMEHelper) : IMEInterface, SuggestionStripViewAcces
             }
         }
 
-        if(file.parentFile?.isDirectory == true) {
+        if (file.parentFile?.isDirectory == true) {
             file.writeText(content)
         }
     }
@@ -615,12 +622,12 @@ class ChineseIME(val helper: IMEHelper) : IMEInterface, SuggestionStripViewAcces
                     ?: ChineseIMESettings.PinyinScheme.FullPinyin
                 val schema = when (layoutHint) {
                     "qwerty" -> {
-                        when {
-                            pinyinScheme == ChineseIMESettings.PinyinScheme.FullPinyin -> when {
+                        when (pinyinScheme) {
+                            ChineseIMESettings.PinyinScheme.FullPinyin -> when {
                                 simplified -> "luna_pinyin_simp"
                                 else -> "luna_pinyin"
                             }
-
+                            ChineseIMESettings.PinyinScheme.RimeIce -> "rime_ice"
                             else -> pinyinScheme.rimeId
                         }
                     }
@@ -667,8 +674,9 @@ class ChineseIME(val helper: IMEHelper) : IMEInterface, SuggestionStripViewAcces
                         Log.e(TAG, "Failed to select schema 3s after deployment!")
                     }
 
-                    rime.setOption("simplification", simplified)
-                    rime.setOption("traditional", !simplified)
+                    rime.setOption("simplification", simplified)       // luna_pinyin_simp 用
+                    rime.setOption("traditional", !simplified)         // luna_pinyin 用
+                    rime.setOption("traditionalization", !simplified)  // rime_ice 用
                     prevConfiguration = config
                 }
             } finally {
