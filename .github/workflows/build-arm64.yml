@@ -45,5 +45,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: futo-keyboard-arm64-debug
-          path: app/build/outputs/apk/debug/*.apk
-          if-no-files-found: error
+          path: app/build/outputs/apk/**/debug/*.apk
