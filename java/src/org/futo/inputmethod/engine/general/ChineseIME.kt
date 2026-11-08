@@ -84,6 +84,7 @@ object ChineseIMESettings {
     ) {
         // These must not be renamed, or the existing setting value for users will break
         RimeIce("霧凇拼音", "Rime Ice", "rime_ice"),
+        Wanxiang("万象拼音", "Wanxiang", "wanxiang"),
         FullPinyin("全拼", "Full Pinyin", "luna_pinyin"),
         Natural("自然碼雙拼", "Double Pinyin", "double_pinyin"),
         ABC("智能ABC雙拼", "Double Pinyin - ABC", "double_pinyin_abc"),
@@ -590,11 +591,11 @@ class ChineseIME(val helper: IMEHelper) : IMEInterface, SuggestionStripViewAcces
 
             // 模糊音对 luna_pinyin 和 rime_ice 都追加
             // 注意：rime_ice 自带 abbrev 简拼规则，这里不要再追加简拼
-            if (schema.startsWith("luna_pinyin") || schema == "rime_ice") {
+            if (schema.startsWith("luna_pinyin") || schema == "rime_ice" || schema == "wanxiang") {
                 appendLine("    speller/algebra/+:")
-                cfg.fuzzyMode.forEach {
-                    it.schemePatch.forEach {
-                        appendLine("        - $it")
+                cfg.fuzzyMode.forEach { mode ->
+                    mode.schemePatch.forEach { rule ->
+                        appendLine("        - $rule")
                     }
                 }
             }
@@ -628,6 +629,7 @@ class ChineseIME(val helper: IMEHelper) : IMEInterface, SuggestionStripViewAcces
                                 else -> "luna_pinyin"
                             }
                             ChineseIMESettings.PinyinScheme.RimeIce -> "rime_ice"
+                            ChineseIMESettings.PinyinScheme.Wanxiang -> "wanxiang"
                             else -> pinyinScheme.rimeId
                         }
                     }
