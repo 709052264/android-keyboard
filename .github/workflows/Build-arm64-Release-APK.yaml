@@ -50,7 +50,7 @@ jobs:
       # 2. 构建 Release 版本，并通过注入参数进行签名
       - name: Build release APK
         run: |
-          ./gradlew assembleUnstableRelease \
+          ./gradlew assembleStableRelease \
             -Pandroid.injected.signing.store.file=$(pwd)/my-release.jks \
             -Pandroid.injected.signing.store.password=${{ secrets.KEY_STORE_PASSWORD }} \
             -Pandroid.injected.signing.key.alias=${{ secrets.KEY_ALIAS }} \
