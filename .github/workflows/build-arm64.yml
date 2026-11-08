@@ -45,12 +45,17 @@ jobs:
       - name: Build debug APK
         run: ./gradlew assembleUnstableDebug --stacktrace
 
-      - name: Locate APK
-        run: find . -path "*/build/outputs/apk/*" -name "*.apk" -type f 2>/dev/null || echo "NO APK FOUND"
+      - name: Collect APK
+        run: |
+          mkdir -p artifacts
+          find . -path "*/build/outputs/apk/*" -name "*.apk" -type f -exec cp {} artifacts/ \;
+          echo "=== APKs collected ==="
+          ls -la artifacts/
+          if [ -z "$(ls -A artifacts)" ]; then echo "NO APK FOUND"; exit 1; fi
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: futo-keyboard-debug
-          path: latinime/build/outputs/apk/**/debug/*.apk
+          path: artifacts/*.apk
           if-no-files-found: error
