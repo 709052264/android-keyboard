@@ -205,6 +205,9 @@ android {
         testApplicationId 'org.futo.inputmethod.latin.tests'
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = false
+
+        // 👇【增加这一行】只保留英文、简体中文和繁体中文，过滤掉其他所有语言
+        resourceConfigurations += ['en', 'zh', 'zh-rCN']
     }
 
     bundle {
