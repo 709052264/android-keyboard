@@ -606,30 +606,25 @@ class ChineseIME(val helper: IMEHelper) : IMEInterface, SuggestionStripViewAcces
 
                 val simplified = isSimplifiedChinese(locale)
 
-                val pinyinScheme = helper.context.getSetting(ChineseIMESettings.PinyinSchemeSetting)
-                    .toEnumOrNull<ChineseIMESettings.PinyinScheme>()
-                    ?: ChineseIMESettings.PinyinScheme.FullPinyin
+                // 👇【新代码】：直接读取字符串设置，不再依赖枚举
+                val schemaSettingId = helper.context.getSetting(ChineseIMESettings.PinyinSchemeSetting)
+
                 val schema = when (layoutHint) {
                     "qwerty" -> {
-                        when (pinyinScheme) {
-                            ChineseIMESettings.PinyinScheme.FullPinyin -> when {
-                                simplified -> "luna_pinyin_simp"
-                                else -> "luna_pinyin"
-                            }
-                            ChineseIMESettings.PinyinScheme.RimeIce -> "rime_ice"
-                            ChineseIMESettings.PinyinScheme.Wanxiang -> "wanxiang"
-                            else -> pinyinScheme.rimeId
+                        // 如果选的是 luna_pinyin，根据简繁设置走系统自带的方案
+                        if (schemaSettingId == "luna_pinyin") {
+                            if (simplified) "luna_pinyin_simp" else "luna_pinyin"
+                        } else {
+                            // 如果选的是第三方方案（如 rime_ice / wanxiang），直接用它的 id
+                            schemaSettingId
                         }
                     }
-
                     "stroke" -> {
                         "stroke"
                     }
-
                     null -> {
                         return@launch
                     }
-
                     else -> {
                         throwIfDebug(IllegalStateException("Invalid layout hint '${layoutHint}'"))
                         "luna_pinyin"
