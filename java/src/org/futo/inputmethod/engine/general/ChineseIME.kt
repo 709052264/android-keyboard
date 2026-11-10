@@ -563,23 +563,23 @@ class ChineseIME(val helper: IMEHelper) : IMEInterface, SuggestionStripViewAcces
         val content = buildString {
             appendLine("patch:")
 
-            // 这两个 translator 选项 luna_pinyin 和 rime_ice 都支持，通用
+            // 这两个 translator 选项所有拼音方案通用
             appendLine("    translator/enable_correction: ${cfg.autocorrect}")
             appendLine("    translator/enable_user_dict: ${cfg.learning}")
 
-            // 只有 luna_pinyin 需要 FUTO 注入简繁开关
-            // rime_ice 自带 traditionalization 开关和 traditionalize 滤镜，不注入
+            // 1. 只有原生的 luna_pinyin 需要注入简繁切换开关
+            // 第三方方案（如雾凇、万象）自带简繁开关，不注入
             if (schema.startsWith("luna_pinyin")) {
                 appendLine("    switches/+:")
                 appendLine("        - name: futo_zh_simp")
-                appendLine("          reset: ${if(cfg.simplification) 1 else 0}")
+                appendLine("          reset: ${if (cfg.simplification) 1 else 0}")
                 appendLine("          states: [ 漢字, 汉字 ]")
                 appendLine("    simplifier/option_name: futo_zh_simp")
             }
 
-            // 模糊音对 luna_pinyin 和 rime_ice 都追加
-            // 注意：rime_ice 自带 abbrev 简拼规则，这里不要再追加简拼
-            if (schema.startsWith("luna_pinyin") || schema == "rime_ice" || schema == "wanxiang") {
+            // 2. 模糊音通用注入：只要是全拼类方案（排除双拼和笔画），统统加上模糊音规则
+            // 这样无论是雾凇、万象，还是未来你导入的其他拼音方案，FUTO 设置里的模糊音都能生效
+            if (!schema.startsWith("double_pinyin") && schema != "stroke") {
                 appendLine("    speller/algebra/+:")
                 cfg.fuzzyMode.forEach { mode ->
                     mode.schemePatch.forEach { rule ->
