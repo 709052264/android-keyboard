@@ -150,6 +150,8 @@ object ChineseIMESettings {
             },
 
             UserSetting(R.string.chinese_setting_pinyin_scheme) {
+                // 👇 需要获取 Context 来读取文件
+                val context = LocalContext.current 
                 val (setting, setSetting) = useDataStore(PinyinSchemeSetting)
                 
                 // 直接读取 RIME 引擎解析出来的方案列表
@@ -162,12 +164,41 @@ object ChineseIMESettings {
                     schemas.map { it.schemaId }
                 }
 
+                // 👇 使用 remember 缓存 ID 到 名字的映射，避免每次界面刷新都去读文件
+                val idToNameMap = remember(schemas) {
+                    val map = mutableMapOf<String, String>()
+                    map["luna_pinyin"] = "全拼 (Full Pinyin)"
+                    map["luna_pinyin_simp"] = "全拼 (简体) (Full Pinyin)"
+
+                    if (schemas.isNotEmpty()) {
+                        try {
+                            val sharedDir = ChineseIME.getShared(context)
+                            schemas.forEach { schema ->
+                                val schemaFile = File(sharedDir, "${schema.schemaId}.schema.yaml")
+                                if (schemaFile.exists()) {
+                                    val content = schemaFile.readText()
+                                    // 用正则提取 YAML 里的 name: xxx
+                                    val nameMatch = Regex("""name:\s*["']?([^"'\n]+)["']?""").find(content)
+                                    map[schema.schemaId] = nameMatch?.groupValues?.get(1)?.trim() ?: schema.schemaId
+                                } else {
+                                    map[schema.schemaId] = schema.schemaId
+                                }
+                            }
+                        } catch (e: Exception) {
+                            // 如果读取失败，静默降级
+                        }
+                    }
+                    map
+                }
+
                 DropDownPickerSettingItem<String>(
                     stringResource(R.string.chinese_setting_pinyin_scheme),
-                    availableIds,       
-                    setting,            
-                    { setSetting(it) }, 
-                    { schemaId -> schemaId } // 👈 直接显示 ID
+                    availableIds,       // 实际值（schemaId 的列表）
+                    setting,            // 当前选中的值
+                    { setSetting(it) }, // 选中后保存的值
+                    { schemaId ->       // 显示给用户看的名字
+                        idToNameMap[schemaId] ?: schemaId
+                    }
                 )
             },
 
