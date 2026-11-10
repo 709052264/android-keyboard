@@ -150,26 +150,31 @@ object ChineseIMESettings {
             },
 
             UserSetting(R.string.chinese_setting_pinyin_scheme) {
-                val context = LocalContext.current
-                val resources = LocalResources.current
                 val (setting, setSetting) = useDataStore(PinyinSchemeSetting)
-
-                val availableEntries = remember {
-                    val sharedDir = ChineseIME.getShared(context)
-                    val files = (sharedDir.listFiles() ?: emptyArray()).map { it.name.split('.').first() }.toSet()
-                    PinyinScheme.entries.filter {
-                        files.contains(it.rimeId) || it == PinyinScheme.FullPinyin
-                    }
+                
+                // 直接读取 RIME 引擎解析出来的方案列表
+                val schemas = ChineseIMESettings.schemaList
+                
+                // 如果列表为空（说明后台还没部署完），给个兜底选项
+                val availableIds = if (schemas.isEmpty()) {
+                    listOf("luna_pinyin")
+                } else {
+                    schemas.map { it.schemaId }
                 }
-                DropDownPickerSettingItem<PinyinScheme>(
+
+                DropDownPickerSettingItem<String>(
                     stringResource(R.string.chinese_setting_pinyin_scheme),
-                    availableEntries,
-                    setting.toEnumOrNull<PinyinScheme>() ?: PinyinScheme.FullPinyin,
-                    { setSetting(it.name) },
-                    { when(resources.configuration.locale.language) {
-                        "zh" -> it.displayNameZH
-                        else -> it.displayNameEN
-                    } }
+                    availableIds,       // 实际值（schemaId 的列表）
+                    setting,            // 当前选中的值
+                    { setSetting(it) }, // 选中后保存的值
+                    { schemaId ->       // 显示给用户看的名字
+                        if (schemas.isEmpty()) {
+                            "全拼 (Full Pinyin)"
+                        } else {
+                            // 优先显示 RIME 方案内部的名字（如“雾凇拼音”），找不到再显示 ID
+                            schemas.find { it.schemaId == schemaId }?.name ?: schemaId
+                        }
+                    }
                 )
             },
 
