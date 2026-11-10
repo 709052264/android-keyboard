@@ -2,7 +2,7 @@ name: Build and Publish arm64 Release APK
 
 on:
   push:
-    branches: [ main, zh ]
+    branches: [ main, master, zh ]  # 👈 加上 master
   workflow_dispatch:
 
 permissions:
