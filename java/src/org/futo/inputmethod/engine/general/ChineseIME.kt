@@ -195,9 +195,7 @@ object ChineseIMESettings {
                         })
                     }
                 }
-
             },
-
         )
     )
 }
