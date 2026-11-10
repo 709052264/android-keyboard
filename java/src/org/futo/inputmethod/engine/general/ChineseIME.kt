@@ -358,6 +358,13 @@ class ChineseIME(val helper: IMEHelper) : IMEInterface, SuggestionStripViewAcces
                 localPrevExtractedDictionaryName = currentDictName
                 scope.launch(Dispatchers.IO) {
                     context.setSetting(PreviouslyExtractedDictionaryName.key, currentDictName)
+                    
+                    // 👇【新增】：如果用的是内置词典，伪造一个已导入的记录骗过 UI
+                    if (isUsingBuiltin) {
+                        // 随便写一个假路径，只要不为空就行
+                        context.setSetting(pref, "builtin_assets_dict.dict") 
+                        context.setSetting(namePref, "builtin_dict_assets")
+                    }
                 }
             }
         }
