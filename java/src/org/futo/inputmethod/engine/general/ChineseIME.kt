@@ -167,12 +167,12 @@ object ChineseIMESettings {
                     availableIds,       // 实际值（schemaId 的列表）
                     setting,            // 当前选中的值
                     { setSetting(it) }, // 选中后保存的值
-                    { schemaId ->       // 显示给用户看的名字
-                        if (schemas.isEmpty()) {
-                            "全拼 (Full Pinyin)"
-                        } else {
-                            // 优先显示 RIME 方案内部的名字（如“雾凇拼音”），找不到再显示 ID
-                            schemas.find { it.schemaId == schemaId }?.name ?: schemaId
+                    { schemaId ->       // 👇【核心修改】：直接用 when 映射显示名字
+                        when (schemaId) {
+                            "luna_pinyin", "luna_pinyin_simp" -> "全拼 (Full Pinyin)"
+                            "rime_ice" -> "雾凇拼音 (Rime Ice)"
+                            "wanxiang" -> "万象拼音 (Wanxiang)"
+                            else -> schemaId // 遇到不认识的方案，直接显示底层 ID
                         }
                     }
                 )
