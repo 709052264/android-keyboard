@@ -281,14 +281,16 @@ class ChineseIME(val helper: IMEHelper) : IMEInterface, SuggestionStripViewAcces
             val filePath = context.getSetting(pref, "")
             val file = File(context.applicationContext.getExternalFilesDir(null), filePath)
 
-            // 如果用户手动导入了词典，用导入了的文件名；如果没导入，标记为内置词典
-            var name = context.getSetting(namePref, "?")
             val isUsingBuiltin = filePath.isEmpty() || !file.exists()
-            if (isUsingBuiltin) {
-                name = "builtin_dict_assets"
+            
+            // 这里定义 currentDictName，彻底告别 'name' 报错
+            val currentDictName = if (isUsingBuiltin) {
+                "builtin_dict_assets"
+            } else {
+                context.getSetting(namePref, "?")
             }
 
-            if ((localPrevExtractedDictionaryName ?: context.getSetting(PreviouslyExtractedDictionaryName)) == name) {
+            if ((localPrevExtractedDictionaryName ?: context.getSetting(PreviouslyExtractedDictionaryName)) == currentDictName) {
                 return false
             }
 
@@ -299,17 +301,18 @@ class ChineseIME(val helper: IMEHelper) : IMEInterface, SuggestionStripViewAcces
                     .fold(true) { res, it -> (it == shared || it.delete() || !it.exists()) && res }
 
                 if (isUsingBuiltin) {
-                    // 👇【新增逻辑】：用户没导入词典，从 assets 中提取所有 .dict 文件
-                    Log.i(TAG, "No custom dictionary found, checking assets for built-in dictionaries...")
+                    // 👇【修复 TAG 报错】：这里直接写死字符串，不用 TAG 变量
+                    Log.i("ChineseIME (rime)", "No custom dictionary found, checking assets for built-in dictionaries...")
+                    
                     val assetFiles = context.assets.list("")?.filter { it.endsWith(".dict") } ?: emptyList()
                     
                     if (assetFiles.isEmpty()) {
-                        Log.w(TAG, "No built-in dictionary found in assets.")
+                        Log.w("ChineseIME (rime)", "No built-in dictionary found in assets.")
                         return true
                     }
 
                     for (dictName in assetFiles) {
-                        Log.i(TAG, "Extracting built-in dictionary: $dictName")
+                        Log.i("ChineseIME (rime)", "Extracting built-in dictionary: $dictName")
                         val builtinFile = File(context.cacheDir, dictName)
                         // 如果缓存里没有，先从 assets 复制到缓存
                         if (!builtinFile.exists()) {
@@ -325,18 +328,18 @@ class ChineseIME(val helper: IMEHelper) : IMEInterface, SuggestionStripViewAcces
                     return true
                 }
 
-                // 👇 原有的用户手动导入解压逻辑
-                Log.i(TAG, "Extracting user imported dictionary: $filePath")
+                // 👇【用户手动导入提取】
+                Log.i("ChineseIME (rime)", "Extracting user imported dictionary: $filePath")
                 ZipFileHelper.extract(file, shared)
                 return true
                 
             } catch (e: Exception) {
-                Log.e(TAG, "Failed to extract dictionary", e)
+                Log.e("ChineseIME (rime)", "Failed to extract dictionary", e)
                 return false
             } finally {
-                localPrevExtractedDictionaryName = name
+                localPrevExtractedDictionaryName = currentDictName
                 scope.launch(Dispatchers.IO) {
-                    context.setSetting(PreviouslyExtractedDictionaryName.key, name)
+                    context.setSetting(PreviouslyExtractedDictionaryName.key, currentDictName)
                 }
             }
         }
