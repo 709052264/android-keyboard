@@ -123,7 +123,7 @@ object ChineseIMESettings {
 
     val PinyinSchemeSetting = SettingsKey(
         stringPreferencesKey("ChineseIME_pinyin_scheme"),
-        "luna_pinyin"
+        "rime_ice"
     )
 
     val FuzzyPinyinSetting = SettingsKey(
@@ -157,12 +157,8 @@ object ChineseIMESettings {
                 // 直接读取 RIME 引擎解析出来的方案列表
                 val schemas = ChineseIMESettings.schemaList
                 
-                // 如果列表为空（说明后台还没部署完），给个兜底选项
-                val availableIds = if (schemas.isEmpty()) {
-                    listOf("luna_pinyin")
-                } else {
-                    schemas.map { it.schemaId }
-                }
+                // 如果列表为空，就展示空列表，防止跳变
+                val availableIds = schemas.map { it.schemaId }
 
                 // 👇 使用 remember 缓存 ID 到 名字的映射，避免每次界面刷新都去读文件
                 val idToNameMap = remember(schemas) {
@@ -196,7 +192,7 @@ object ChineseIMESettings {
                     availableIds,       // 实际值（schemaId 的列表）
                     setting,            // 当前选中的值
                     { setSetting(it) }, // 选中后保存的值
-                    { schemaId ->       // 显示给用户看的名字
+                    { schemaId ->
                         idToNameMap[schemaId] ?: schemaId
                     }
                 )
@@ -661,8 +657,16 @@ class ChineseIME(val helper: IMEHelper) : IMEInterface, SuggestionStripViewAcces
 
                 val simplified = isSimplifiedChinese(locale)
 
-                // 👇【新代码】：直接读取字符串设置，不再依赖枚举
-                val schemaSettingId = helper.context.getSetting(ChineseIMESettings.PinyinSchemeSetting)
+                // 👇 修改这里
+                var schemaSettingId = helper.context.getSetting(ChineseIMESettings.PinyinSchemeSetting)
+                
+                // 如果列表不为空，且当前选的 ID 不在列表里，强制切换到列表第一个
+                val currentSchemas = ChineseIMESettings.schemaList
+                if (currentSchemas.isNotEmpty() && currentSchemas.none { it.schemaId == schemaSettingId }) {
+                    schemaSettingId = currentSchemas.first().schemaId
+                    // 把纠正后的值写回设置里
+                    helper.context.setSetting(ChineseIMESettings.PinyinSchemeSetting.key, schemaSettingId)
+                }
 
                 val schema = when (layoutHint) {
                     "qwerty" -> {
