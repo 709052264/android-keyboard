@@ -281,28 +281,58 @@ class ChineseIME(val helper: IMEHelper) : IMEInterface, SuggestionStripViewAcces
             val filePath = context.getSetting(pref, "")
             val file = File(context.applicationContext.getExternalFilesDir(null), filePath)
 
-            val name = context.getSetting(namePref, "?")
+            // 如果用户手动导入了词典，用导入了的文件名；如果没导入，标记为内置词典
+            var name = context.getSetting(namePref, "?")
+            val isUsingBuiltin = filePath.isEmpty() || !file.exists()
+            if (isUsingBuiltin) {
+                name = "builtin_dict_assets"
+            }
 
-
-
-            if((localPrevExtractedDictionaryName ?: context.getSetting(PreviouslyExtractedDictionaryName)) == name) {
+            if ((localPrevExtractedDictionaryName ?: context.getSetting(PreviouslyExtractedDictionaryName)) == name) {
                 return false
             }
 
             try {
                 val shared = getShared(context)
+                // 清空现有的 shared 目录
                 shared.walkBottomUp()
                     .fold(true) { res, it -> (it == shared || it.delete() || !it.exists()) && res }
 
-                // We are intentionally checking this only after deleting the shared directory
-                // This is because if the user deletes the dictionary file, we want to apply
-                // the deletion (TODO: It doesn't apply)
-                if(filePath.isEmpty()) return true
-                if(!file.exists()) return true
+                if (isUsingBuiltin) {
+                    // 👇【新增逻辑】：用户没导入词典，从 assets 中提取所有 .dict 文件
+                    Log.i(TAG, "No custom dictionary found, checking assets for built-in dictionaries...")
+                    val assetFiles = context.assets.list("")?.filter { it.endsWith(".dict") } ?: emptyList()
+                    
+                    if (assetFiles.isEmpty()) {
+                        Log.w(TAG, "No built-in dictionary found in assets.")
+                        return true
+                    }
 
+                    for (dictName in assetFiles) {
+                        Log.i(TAG, "Extracting built-in dictionary: $dictName")
+                        val builtinFile = File(context.cacheDir, dictName)
+                        // 如果缓存里没有，先从 assets 复制到缓存
+                        if (!builtinFile.exists()) {
+                            context.assets.open(dictName).use { input ->
+                                builtinFile.outputStream().use { output ->
+                                    input.copyTo(output)
+                                }
+                            }
+                        }
+                        // 解压到 shared 目录
+                        ZipFileHelper.extract(builtinFile, shared)
+                    }
+                    return true
+                }
+
+                // 👇 原有的用户手动导入解压逻辑
+                Log.i(TAG, "Extracting user imported dictionary: $filePath")
                 ZipFileHelper.extract(file, shared)
-
                 return true
+                
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to extract dictionary", e)
+                return false
             } finally {
                 localPrevExtractedDictionaryName = name
                 scope.launch(Dispatchers.IO) {
