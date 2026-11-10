@@ -296,12 +296,17 @@ class ChineseIME(val helper: IMEHelper) : IMEInterface, SuggestionStripViewAcces
         fun resetSharedFromResources(context: Context, scope: CoroutineScope): Boolean {
             val pref = FileKind.Dictionary.preferenceKeyFor("zh")
             val namePref = FileKind.Dictionary.namePreferenceKeyFor("zh")
-            val filePath = context.getSetting(pref, "")
-            val file = File(context.applicationContext.getExternalFilesDir(null), filePath)
+            var filePath = context.getSetting(pref, "")
+            var file = File(context.applicationContext.getExternalFilesDir(null), filePath)
 
-            val isUsingBuiltin = filePath.isEmpty() || !file.exists()
+            // 1. 检查外部存储中是否真的存在用户导入的文件
+            val isFileMissing = filePath.isEmpty() || !file.exists()
             
-            // 这里定义 currentDictName，彻底告别 'name' 报错
+            // 如果没有外部文件，检查 assets 里有没有内置的词典
+            val assetFiles = context.assets.list("")?.filter { it.endsWith(".dict") } ?: emptyList()
+            val isUsingBuiltin = isFileMissing && assetFiles.isNotEmpty()
+
+            // 计算当前的标识名
             val currentDictName = if (isUsingBuiltin) {
                 "builtin_dict_assets"
             } else {
@@ -314,39 +319,42 @@ class ChineseIME(val helper: IMEHelper) : IMEInterface, SuggestionStripViewAcces
 
             try {
                 val shared = getShared(context)
-                // 清空现有的 shared 目录
                 shared.walkBottomUp()
                     .fold(true) { res, it -> (it == shared || it.delete() || !it.exists()) && res }
 
                 if (isUsingBuiltin) {
-                    // 👇【修复 TAG 报错】：这里直接写死字符串，不用 TAG 变量
-                    Log.i("ChineseIME (rime)", "No custom dictionary found, checking assets for built-in dictionaries...")
+                    Log.i("ChineseIME (rime)", "Built-in dictionary mode triggered.")
                     
-                    val assetFiles = context.assets.list("")?.filter { it.endsWith(".dict") } ?: emptyList()
-                    
-                    if (assetFiles.isEmpty()) {
-                        Log.w("ChineseIME (rime)", "No built-in dictionary found in assets.")
-                        return true
-                    }
-
+                    val dictsDir = context.getExternalFilesDir(null) ?: context.filesDir
+                    // 遍历 assets 里的 dict 文件，并把它们真实地复制到外部存储
                     for (dictName in assetFiles) {
-                        Log.i("ChineseIME (rime)", "Extracting built-in dictionary: $dictName")
-                        val builtinFile = File(context.cacheDir, dictName)
-                        // 如果缓存里没有，先从 assets 复制到缓存
-                        if (!builtinFile.exists()) {
+                        Log.i("ChineseIME (rime)", "Copying built-in dictionary: $dictName")
+                        val destFile = File(dictsDir, dictName)
+                        // 如果目标文件不存在，或者版本号变了，才重新复制
+                        if (!destFile.exists() || currentDictName != (localPrevExtractedDictionaryName ?: "")) {
                             context.assets.open(dictName).use { input ->
-                                builtinFile.outputStream().use { output ->
+                                destFile.outputStream().use { output ->
                                     input.copyTo(output)
                                 }
                             }
                         }
                         // 解压到 shared 目录
-                        ZipFileHelper.extract(builtinFile, shared)
+                        ZipFileHelper.extract(destFile, shared)
+                    }
+                    
+                    // 👇【核心魔法】：把真实存在的文件路径和名字写回设置！
+                    // 这样 UI 检查时，会发现文件真的存在，提示彻底消失！
+                    if (assetFiles.isNotEmpty()) {
+                        val firstDict = assetFiles.first()
+                        scope.launch(Dispatchers.IO) {
+                            context.setSetting(pref, firstDict) // 例如 "rime_ice.dict"
+                            context.setSetting(namePref, "Built-in Dictionary")
+                        }
                     }
                     return true
                 }
 
-                // 👇【用户手动导入提取】
+                // 原有的用户手动导入解压逻辑
                 Log.i("ChineseIME (rime)", "Extracting user imported dictionary: $filePath")
                 ZipFileHelper.extract(file, shared)
                 return true
@@ -358,13 +366,6 @@ class ChineseIME(val helper: IMEHelper) : IMEInterface, SuggestionStripViewAcces
                 localPrevExtractedDictionaryName = currentDictName
                 scope.launch(Dispatchers.IO) {
                     context.setSetting(PreviouslyExtractedDictionaryName.key, currentDictName)
-                    
-                    // 👇【新增】：如果用的是内置词典，伪造一个已导入的记录骗过 UI
-                    if (isUsingBuiltin) {
-                        // 随便写一个假路径，只要不为空就行
-                        context.setSetting(pref, "builtin_assets_dict.dict") 
-                        context.setSetting(namePref, "builtin_dict_assets")
-                    }
                 }
             }
         }
